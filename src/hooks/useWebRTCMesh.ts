@@ -116,6 +116,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useAuth } from "@clerk/nextjs";
 import usePartySocket from "partysocket/react";
 import { adaptVideoBitrate } from "@/lib/screenShareBitrate";
+import { StreamQualityMonitor } from "@/lib/webrtc/streamQualityMonitor";
 import { calculateRMS, rmsToDecibels } from "@/lib/audio";
 
 const ICE_SERVERS: RTCIceServer[] = [{ urls: "stun:stun.l.google.com:19302" }];
@@ -170,6 +171,7 @@ export function useWebRTCMesh({ roomId, userId }: Options) {
   const localStreamRef = useRef<MediaStream | null>(null);
   const localScreenStreamRef = useRef<MediaStream | null>(null);
   const peersRef = useRef<Map<string, RTCPeerConnection>>(new Map());
+  const monitorsRef = useRef<Map<string, StreamQualityMonitor>>(new Map());
 
   type PeerState = {
     makingOffer: boolean;
@@ -227,6 +229,11 @@ export function useWebRTCMesh({ roomId, userId }: Options) {
 
     pc.onicecandidate = null;
     pc.ontrack = null;
+    const monitor = monitorsRef.current.get(peerId);
+    if (monitor) {
+      monitor.stop();
+      monitorsRef.current.delete(peerId);
+    }
     pc.close();
     peersRef.current.delete(peerId);
     peerStatesRef.current.delete(peerId);
@@ -317,6 +324,10 @@ export function useWebRTCMesh({ roomId, userId }: Options) {
 
       pc = new RTCPeerConnection({ iceServers: ICE_SERVERS });
       peersRef.current.set(peerId, pc);
+
+      const monitor = new StreamQualityMonitor(pc);
+      monitor.start();
+      monitorsRef.current.set(peerId, monitor);
       const polite = isInitiator;
       peerStatesRef.current.set(peerId, {
         makingOffer: false,
@@ -620,6 +631,8 @@ export function useWebRTCMesh({ roomId, userId }: Options) {
       for (const id of currentPeers) {
         cleanupPeer(id);
       }
+      monitorsRef.current.forEach((monitor) => monitor.stop());
+      monitorsRef.current.clear();
 
       for (const [, { source, analyser }] of analysersMap.entries()) {
         try {
