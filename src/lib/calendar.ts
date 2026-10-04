@@ -53,6 +53,8 @@ export const generateICSContent = (
   timeStr: string,
   durationMinutes = 60,
   confirmationId = "",
+  latitude?: number,
+  longitude?: number,
 ) => {
   const { start, end } = formatDateTimeForCalendar(
     dateStr,
@@ -94,9 +96,21 @@ export const generateICSContent = (
     `SUMMARY:${escapeIcsText(summary)}`,
     `DESCRIPTION:${description}`,
     `LOCATION:${escapeIcsText(venueAddress)}`,
+  ];
+
+  if (latitude !== undefined && longitude !== undefined) {
+    lines.push(`GEO:${latitude};${longitude}`);
+  }
+
+  lines.push(
+    "BEGIN:VALARM",
+    "TRIGGER:-PT30M",
+    "ACTION:DISPLAY",
+    "DESCRIPTION:Reminder",
+    "END:VALARM",
     "END:VEVENT",
     "END:VCALENDAR",
-  ];
+  );
 
   return lines.join("\r\n") + "\r\n";
 };
@@ -108,6 +122,8 @@ export const downloadICS = (
   timeStr: string,
   durationMinutes = 60,
   confirmationId = "",
+  latitude?: number,
+  longitude?: number,
 ) => {
   const icsContent = generateICSContent(
     venueName,
@@ -116,6 +132,8 @@ export const downloadICS = (
     timeStr,
     durationMinutes,
     confirmationId,
+    latitude,
+    longitude,
   );
   if (!icsContent) return;
 
@@ -141,6 +159,8 @@ interface BulkBooking {
   time: string;
   duration?: number;
   confirmationId?: string;
+  latitude?: number;
+  longitude?: number;
 }
 
 /**
@@ -166,18 +186,30 @@ export function generateBulkICSContent(bookings: BulkBooking[]): string | null {
       ? `${b.confirmationId.replace(/[^A-Za-z0-9#-]/g, "")}@worksphere.app`
       : `booking-${start}-${Math.random().toString(36).slice(2, 8)}@worksphere.app`;
 
-    events.push(
-      [
-        "BEGIN:VEVENT",
-        `UID:${uid}`,
-        `DTSTAMP:${start}`,
-        `DTSTART:${start}`,
-        `DTEND:${end}`,
-        `SUMMARY:${escapeIcsText(summary)}`,
-        `LOCATION:${escapeIcsText(b.venueAddress)}`,
-        "END:VEVENT",
-      ].join("\r\n"),
+    const eventLines = [
+      "BEGIN:VEVENT",
+      `UID:${uid}`,
+      `DTSTAMP:${start}`,
+      `DTSTART:${start}`,
+      `DTEND:${end}`,
+      `SUMMARY:${escapeIcsText(summary)}`,
+      `LOCATION:${escapeIcsText(b.venueAddress)}`,
+    ];
+
+    if (b.latitude !== undefined && b.longitude !== undefined) {
+      eventLines.push(`GEO:${b.latitude};${b.longitude}`);
+    }
+
+    eventLines.push(
+      "BEGIN:VALARM",
+      "TRIGGER:-PT30M",
+      "ACTION:DISPLAY",
+      "DESCRIPTION:Reminder",
+      "END:VALARM",
+      "END:VEVENT",
     );
+
+    events.push(eventLines.join("\r\n"));
   }
 
   if (events.length === 0) return null;

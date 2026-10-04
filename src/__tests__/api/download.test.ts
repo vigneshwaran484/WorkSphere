@@ -19,21 +19,9 @@ jest.mock("@/lib/prisma", () => ({
   },
 }));
 
-jest.mock("fs", () => {
-  const actual = jest.requireActual("fs");
-  return {
-    ...actual,
-    promises: {
-      ...actual.promises,
-      readFile: jest.fn(),
-    },
-  };
-});
-
 describe("GET /api/bookings/[bookingId]/download", () => {
   const mockAuth = auth as unknown as jest.Mock;
   const mockFindFirst = (prisma as any).booking.findFirst as jest.Mock;
-  const mockReadFile = fs.promises.readFile as jest.Mock;
 
   beforeEach(() => {
     jest.clearAllMocks();
@@ -64,20 +52,20 @@ describe("GET /api/bookings/[bookingId]/download", () => {
     expect(res.status).toBe(404);
   });
 
-  it("returns 200 with PDF content type and reads fonts asynchronously", async () => {
+  it("returns 200 with ICS content type and valid payload", async () => {
     mockAuth.mockResolvedValue({ userId: "user_123" });
     mockFindFirst.mockResolvedValue({
       id: "booking_123",
       confirmationId: "WS-CONF-123",
       date: "2026-07-19",
       time: "12:00",
-      duration: 3,
-      projectBillingCode: "BILL-123",
-      customerEmail: "customer@example.com",
+      duration: 60,
       venue: {
         name: "Test Venue",
         category: "cafe",
         address: "123 Test St",
+        latitude: 12.34,
+        longitude: 56.78,
       },
       user: {
         firstName: "John",
@@ -85,19 +73,28 @@ describe("GET /api/bookings/[bookingId]/download", () => {
       },
     });
 
-    // Mock readFile to return a dummy buffer
-    mockReadFile.mockResolvedValue(Buffer.from("dummy-font-data"));
-
     const req = {
-      nextUrl: new URL(
-        "http://localhost/api/bookings/booking_123/download?showLogo=true",
-      ),
+      nextUrl: new URL("http://localhost/api/bookings/booking_123/download"),
     };
     const context = { params: Promise.resolve({ bookingId: "booking_123" }) };
 
     const res = await GET(req as any, context);
     expect(res.status).toBe(200);
-    expect(res.headers.get("Content-Type")).toBe("application/pdf");
-    expect(mockReadFile).toHaveBeenCalledTimes(2);
+    expect(res.headers.get("Content-Type")).toBe(
+      "text/calendar; charset=utf-8",
+    );
+    expect(res.headers.get("Content-Disposition")).toBe(
+      'attachment; filename="worksphere-booking.ics"',
+    );
+
+    const text = await res.text();
+    expect(text).toContain("BEGIN:VCALENDAR");
+    expect(text).toContain("BEGIN:VEVENT");
+    expect(text).toContain(
+      "SUMMARY:Booking at Test Venue (60 min) [WS-CONF-123] - 123 Test St",
+    );
+    expect(text).toContain("GEO:12.34;56.78");
+    expect(text).toContain("BEGIN:VALARM");
+    expect(text).toContain("TRIGGER:-PT30M");
   });
 });

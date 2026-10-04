@@ -61,4 +61,12 @@ describe("generateICSContent", () => {
   it("returns empty string for invalid date/time", () => {
     expect(generateICSContent("X", "Y", "", "10:00")).toBe("");
   });
+
+  it("includes VALARM block to notify user 30 minutes prior", () => {
+    expect(ics).toContain("BEGIN:VALARM");
+    expect(ics).toContain("TRIGGER:-PT30M");
+    expect(ics).toContain("ACTION:DISPLAY");
+    expect(ics).toContain("DESCRIPTION:Reminder");
+    expect(ics).toContain("END:VALARM");
+  });
 });
