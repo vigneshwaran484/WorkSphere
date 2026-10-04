@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import nodemailer from "nodemailer";
 import twilio from "twilio";
-import { processUpcomingReservationAlerts } from "@/lib/reminderCron";
+import { processUpcomingReservationAlerts, processUpcomingPushAlerts } from "@/lib/reminderCron";
 import { prisma } from "@/lib/prisma";
 import { getRedis } from "@/lib/redis";
 import { isWithinNotificationWindow } from "@/lib/notificationWindow";
@@ -167,12 +167,14 @@ async function run(req: Request) {
 
   try {
     const now = new Date();
+    const pushAlerts = await processUpcomingPushAlerts(now);
     const bookings = await processUpcomingReservationAlerts(now);
     const sessions = await processSessionReminders(now);
 
     return NextResponse.json({
       success: true,
       timestamp: now.toISOString(),
+      pushRemindersSent: pushAlerts.sent,
       bookingRemindersSent: bookings.sent,
       ...sessions,
     });
