@@ -11,6 +11,7 @@ describe("WebGLHeatmapRenderer Engine & Shaders (#818)", () => {
   beforeEach(() => {
     canvas = document.createElement("canvas");
     mockGl = {
+      getExtension: jest.fn(() => null),
       enable: jest.fn(),
       blendFunc: jest.fn(),
       createShader: jest.fn(() => ({})),
@@ -28,12 +29,14 @@ describe("WebGLHeatmapRenderer Engine & Shaders (#818)", () => {
       bindBuffer: jest.fn(),
       bufferData: jest.fn(),
       bufferSubData: jest.fn(),
+      bindFramebuffer: jest.fn(),
       viewport: jest.fn(),
       clearColor: jest.fn(),
       clear: jest.fn(),
       uniform1f: jest.fn(),
       uniform2f: jest.fn(),
       enableVertexAttribArray: jest.fn(),
+      disableVertexAttribArray: jest.fn(),
       vertexAttribPointer: jest.fn(),
       drawArrays: jest.fn(),
       deleteProgram: jest.fn(),
