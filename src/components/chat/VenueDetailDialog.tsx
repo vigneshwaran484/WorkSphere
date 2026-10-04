@@ -49,6 +49,7 @@ import {
 } from "recharts";
 import { useTranslation } from "react-i18next";
 
+import VenuePhotoLightbox from "../venues/VenuePhotoLightbox";
 import { Venue } from "./ChatMessages";
 import { RatingDistribution } from "./RatingDistribution";
 import { AmenityVoteBreakdownModal } from "./AmenityVoteBreakdownModal";
@@ -2237,81 +2238,16 @@ export function VenueDetailDialog({
         </div>
       )}
 
-      {lightboxIndex !== null && allPhotos.length > 0 && (
-        <div
-          className="fixed inset-0 z-[12000] flex flex-col justify-between p-4 bg-black/95 animate-in fade-in duration-200"
-          onClick={() => setLightboxIndex(null)}
-        >
-          {/* Header */}
-          <div className="w-full flex justify-between items-center z-10 px-4 pt-2">
-            <span className="text-sm font-semibold text-white/80">
-              {lightboxIndex + 1} / {allPhotos.length}
-            </span>
-            <button
-              onClick={() => setLightboxIndex(null)}
-              className="p-2 bg-white/10 hover:bg-white/20 text-white rounded-full transition-all backdrop-blur-md border border-white/10"
-              aria-label="Close lightbox"
-            >
-              <X className="w-5 h-5" />
-            </button>
-          </div>
-
-          {/* Main Content: Prev Button, Image, Next Button */}
-          <div className="flex-1 flex items-center justify-between relative max-h-[80vh] px-4 md:px-12">
-            {allPhotos.length > 1 && (
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setLightboxIndex((prev) =>
-                    prev !== null
-                      ? (prev - 1 + allPhotos.length) % allPhotos.length
-                      : 0,
-                  );
-                }}
-                className="p-3 bg-white/10 hover:bg-white/20 text-white rounded-full transition-all backdrop-blur-md border border-white/10 hidden sm:block"
-                aria-label="Previous photo"
-              >
-                <ChevronRight className="w-6 h-6 rotate-180" />
-              </button>
-            )}
-
-            <div
-              className="relative max-w-full max-h-full flex items-center justify-center overflow-hidden"
-              onClick={(e) => e.stopPropagation()}
-              onTouchStart={handleTouchStart}
-              onTouchEnd={handleTouchEnd}
-            >
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
-                src={allPhotos[lightboxIndex]}
-                alt={`${venue.name} fullscreen view`}
-                className="max-w-full max-h-[75vh] object-contain rounded-lg shadow-2xl select-none transition-transform duration-300"
-              />
-            </div>
-
-            {allPhotos.length > 1 && (
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setLightboxIndex((prev) =>
-                    prev !== null ? (prev + 1) % allPhotos.length : 0,
-                  );
-                }}
-                className="p-3 bg-white/10 hover:bg-white/20 text-white rounded-full transition-all backdrop-blur-md border border-white/10 hidden sm:block"
-                aria-label="Next photo"
-              >
-                <ChevronRight className="w-6 h-6" />
-              </button>
-            )}
-          </div>
-
-          {/* Footer Instruction */}
-          <div className="text-center py-2 text-xs text-white/40 select-none">
-            Use arrow keys to navigate &bull; Swipe on mobile &bull; Click
-            outside to close
-          </div>
-        </div>
-      )}
+      <VenuePhotoLightbox
+        isOpen={lightboxIndex !== null && allPhotos.length > 0}
+        onClose={() => setLightboxIndex(null)}
+        initialIndex={lightboxIndex ?? 0}
+        photos={allPhotos.map((url, i) => ({
+          id: i.toString(),
+          url,
+          alt: `${venue.name} fullscreen view ${i + 1}`,
+        }))}
+      />
     </div>
   );
 }
