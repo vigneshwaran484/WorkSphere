@@ -5,6 +5,7 @@ import { isWithinNotificationWindow } from "./notificationWindow";
 import { appUrl } from "./appUrl";
 import { escapeHtml } from "./html";
 import { bookingStartsAt } from "./bookingTime";
+import { sendPushNotification } from "./pushNotifications";
 
 // Fallback idempotency store for deployments without Redis (single instance only).
 const sentInMemory = new Map<string, number>();
@@ -165,6 +166,78 @@ export async function processUpcomingReservationAlerts(
     } catch (err) {
       console.error(
         `Error processing booking reminder for ${booking.id}:`,
+        err,
+      );
+    }
+  }
+
+  return { checked: bookings.length, sent };
+}
+
+
+/**
+ * Sends push notifications to users whose reservation starts 55–65 minutes from now.
+ * Booking times are interpreted in the booking owner's timezone.
+ */
+export async function processUpcomingPushAlerts(
+  now: Date = new Date(),
+): Promise<{ checked: number; sent: number }> {
+  const day = 24 * 60 * 60 * 1000;
+  // A booking's local date can be a day either side of the UTC date.
+  const candidateDates = [
+    isoDate(new Date(now.getTime() - day)),
+    isoDate(now),
+    isoDate(new Date(now.getTime() + day)),
+  ];
+
+  const bookings = await prisma.booking.findMany({
+    where: {
+      date: { in: candidateDates },
+      status: "CONFIRMED",
+    },
+    include: {
+      user: true,
+      venue: true,
+    },
+  });
+
+  const targetMin = now.getTime() + 55 * 60 * 1000;
+  const targetMax = now.getTime() + 65 * 60 * 1000;
+  let sent = 0;
+
+  for (const booking of bookings) {
+    try {
+      const startsAt = bookingStartsAt(booking, booking.user?.timezone);
+      if (!startsAt) continue;
+      if (startsAt.getTime() < targetMin || startsAt.getTime() > targetMax) {
+        continue;
+      }
+
+      const key = `booking-push-reminder:${booking.id}`;
+      if (await wasSent(key)) continue;
+
+      const venueName = booking.venue.name;
+      const venueId = booking.venue.id;
+
+      // Note: we're using sendPushNotification which handles stale subscriptions implicitly
+      // by removing those that return 410 or 404.
+      const result = await sendPushNotification(booking.userId, {
+        title: "Upcoming Workspace Reservation",
+        body: `Your desk at ${venueName} is ready in 1 hour.`,
+        icon: "/icons/icon-192.png",
+        data: { url: `/reserve/${venueId}` },
+      });
+
+      if (result.sent > 0 || result.failed > 0) {
+        // Mark as sent even if failed, to avoid retrying in loop
+        await markSent(key, 2 * 60 * 60);
+        if (result.sent > 0) {
+            sent += result.sent;
+        }
+      }
+    } catch (err) {
+      console.error(
+        `Error processing booking push reminder for ${booking.id}:`,
         err,
       );
     }
